@@ -35,7 +35,9 @@ async function appendLinks({ key = 'default', links } = {}) {
 
 async function scrapePage() {
   // eslint-disable-next-line
-  const tabs = await chrome.tabs.query({ url: '*://*.linkedin.com/search/results/people/*' });
+  const tabs = await chrome.tabs.query({
+    url: '*://*.linkedin.com/search/results/people/*',
+  });
   const activeTab = tabs[0];
 
   // eslint-disable-next-line
@@ -98,8 +100,16 @@ function Home() {
   return (
     <div>
       <Paper>
-        <Button onClick={scrapePage}>Let's Fucking GO</Button>
-        <Button onClick={clearLinks}>Clear</Button>
+        <div>
+          <Button variant="contained" color="primary" onClick={scrapePage}>
+            Scrape Links
+          </Button>
+        </div>
+        <div>
+          <Button variant="contained" color="secondary" onClick={clearLinks}>
+            Clear
+          </Button>
+        </div>
       </Paper>
       <Paper>
         <div>Link Count: {state.linkCount}</div>
