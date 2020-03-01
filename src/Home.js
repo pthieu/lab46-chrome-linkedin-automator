@@ -4,11 +4,7 @@ import { Button, Paper } from '@material-ui/core';
 import * as chromeAsync from 'chrome-extension-async';
 
 const SCRAPE_INTERVAL = 2000;
-
-function getFnBody(fn) {
-  const fnStr = fn.toString();
-  return fnStr.substring(fnStr.indexOf('{') + 1, fnStr.lastIndexOf('}'));
-}
+const PROFILE_VISIT_INTERVAL = 4000;
 
 async function clearLinks({ key = 'default' } = {}) {
   // eslint-disable-next-line
@@ -65,6 +61,34 @@ async function scrapePage() {
   });
 }
 
+async function visitNextProfile() {
+  // eslint-disable-next-line
+  chrome.windows.create(
+    {
+      // eslint-disable-next-line
+      url: 'https://www.linkedin.com/in/pthieu/',
+      type: 'popup',
+      focused: false,
+      height: 500,
+      width: 500,
+    },
+    (w) => {
+      const newTabId = w.tabs[0].id;
+      // eslint-disable-next-line
+      chrome.tabs.onUpdated.addListener(function listener(tabId, info) {
+        if (info.status === 'complete' && tabId === newTabId) {
+          // eslint-disable-next-line
+          chrome.tabs.onUpdated.removeListener(listener);
+          // eslint-disable-next-line
+          chrome.tabs.executeScript(w.tabs[0].id, {
+          code: `(window.close())()`,
+        });
+        }
+      });
+    },
+  );
+}
+
 // Chrome Injected Code
 function scrollToBottom() {
   window.scrollTo(0, document.body.scrollHeight);
@@ -88,16 +112,33 @@ function clickNext() {
 function Home() {
   const [state, setState] = useState({ linkCount: 0 });
   const [scrapeRunning, setScrapeRunning] = useState(false);
-  const [scrapeJobId, setScrapeJobId] = useState(null)
+  const [scrapeJobId, setScrapeJobId] = useState(null);
+  const [profileVisit, setProfileVisit] = useState({
+    running: false,
+    jobId: null,
+  });
 
   async function toggleScrapePage() {
     if (!scrapeRunning) {
       setScrapeJobId(setInterval(scrapePage, SCRAPE_INTERVAL));
     } else {
-      clearInterval(scrapeJobId)
+      clearInterval(scrapeJobId);
     }
 
     setScrapeRunning(!scrapeRunning);
+  }
+
+  async function toggleProfileVisits() {
+    if (!profileVisit.running) {
+      setScrapeJobId(setInterval(visitNextProfile, PROFILE_VISIT_INTERVAL));
+    } else {
+      clearInterval(profileVisit.jobId);
+    }
+
+    setProfileVisit({
+      ...profileVisit,
+      running: !profileVisit.running,
+    });
   }
 
   useEffect(() => {
@@ -126,10 +167,20 @@ function Home() {
             Clear
           </Button>
         </div>
+        <div>
+          <Button
+            variant="contained"
+            color="primary"
+            onClick={visitNextProfile}
+          >
+            {profileVisit.running ? 'Stop Visits' : 'Start Visits'}
+          </Button>
+        </div>
       </Paper>
       <Paper>
         <div>Link Count: {state.linkCount}</div>
-        <div>Running: {String(scrapeRunning)}</div>
+        <div>Running Scrape: {String(scrapeRunning)}</div>
+        <div>Running Profile Visits: {String(profileVisit.running)}</div>
       </Paper>
     </div>
   );
