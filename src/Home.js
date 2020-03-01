@@ -3,6 +3,8 @@ import { Button, Paper } from '@material-ui/core';
 // import { makeStyles } from '@material-ui/core/styles';
 import * as chromeAsync from 'chrome-extension-async';
 
+const SCRAPE_INTERVAL = 2000;
+
 function getFnBody(fn) {
   const fnStr = fn.toString();
   return fnStr.substring(fnStr.indexOf('{') + 1, fnStr.lastIndexOf('}'));
@@ -45,10 +47,8 @@ async function scrapePage() {
     code: `(${scrollToBottom})()`,
   });
 
-  // XXX(Phong): not sure if 500 is the limit for the page to load after
-  // scrolling to the bottom
   await new Promise((resolve) => {
-    setTimeout(resolve, 500);
+    setTimeout(resolve, SCRAPE_INTERVAL);
   });
 
   // eslint-disable-next-line
@@ -87,22 +87,38 @@ function clickNext() {
 
 function Home() {
   const [state, setState] = useState({ linkCount: 0 });
+  const [scrapeRunning, setScrapeRunning] = useState(false);
+  const [scrapeJobId, setScrapeJobId] = useState(null)
+
+  async function toggleScrapePage() {
+    if (!scrapeRunning) {
+      setScrapeJobId(setInterval(scrapePage, SCRAPE_INTERVAL));
+    } else {
+      clearInterval(scrapeJobId)
+    }
+
+    setScrapeRunning(!scrapeRunning);
+  }
 
   useEffect(() => {
     async function init() {
       const links = await getLinks();
       const linkCount = Object.keys(links).length;
-      setState({ linkCount });
+      setState({ ...state, linkCount });
     }
     init();
-  });
+  }, [state, scrapeRunning, scrapeJobId]);
 
   return (
     <div>
       <Paper>
         <div>
-          <Button variant="contained" color="primary" onClick={scrapePage}>
-            Scrape Links
+          <Button
+            variant="contained"
+            color="primary"
+            onClick={toggleScrapePage}
+          >
+            {scrapeRunning ? 'Stop Scraping' : 'Start Scraping'}
           </Button>
         </div>
         <div>
@@ -113,6 +129,7 @@ function Home() {
       </Paper>
       <Paper>
         <div>Link Count: {state.linkCount}</div>
+        <div>Running: {String(scrapeRunning)}</div>
       </Paper>
     </div>
   );
