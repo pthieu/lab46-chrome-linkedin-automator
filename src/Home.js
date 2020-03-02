@@ -74,9 +74,10 @@ async function scrapePage() {
   await appendLinks({ links: hrefs });
 
   // eslint-disable-next-line
-  await chrome.tabs.executeScript(activeTab.id, {
+  const nextRes = await chrome.tabs.executeScript(activeTab.id, {
     code: `(${clickNext})()`,
   });
+  return nextRes[0];
 }
 
 async function visitNextProfile() {
@@ -92,6 +93,7 @@ async function visitNextProfile() {
   data.currentIndex++;
 
   await setVisitProfileData(data);
+  // XXX(Phong): this happens even if you're not focused on the chrome app
   // eslint-disable-next-line
   chrome.windows.create(
     {
@@ -181,7 +183,9 @@ function getLinkedInHrefs() {
 }
 
 function clickNext() {
-  document.querySelector('.artdeco-pagination__button--next').click();
+  const node = document.querySelector('.artdeco-pagination__button--next');
+  node.click();
+  return node.disabled ? -1 : 0;
 }
 
 function Home() {
@@ -195,20 +199,32 @@ function Home() {
 
   async function toggleScrapePage() {
     if (!scrapeRunning) {
-      setScrapeJobId(setInterval(scrapePage, SCRAPE_INTERVAL));
+      const jobId = setInterval(async () => {
+        const res = await scrapePage();
+        if (res === -1) {
+          return clearScapePage(jobId);
+        }
+      }, SCRAPE_INTERVAL);
+      setScrapeJobId(jobId);
     } else {
-      clearInterval(scrapeJobId);
+      await clearScapePage();
     }
 
     setScrapeRunning(!scrapeRunning);
   }
 
+  async function clearScapePage(jobId) {
+    clearInterval(scrapeJobId || jobId);
+    setScrapeJobId(null);
+    setScrapeRunning(false);
+  }
+
   async function toggleProfileVisits() {
     let links = (await generateVisitLinks()) || [];
 
-    // if (links.length <= 0) {
-    //   return;
-    // }
+    if (links.length <= 0) {
+      return;
+    }
 
     if (!profileVisit.running) {
       const jobId = setInterval(async () => {
@@ -246,7 +262,7 @@ function Home() {
       setState({ ...state, linkCount });
     }
     init();
-  }, [state, scrapeRunning, scrapeJobId, profileVisit]);
+  }, []);
 
   return (
     <div>
