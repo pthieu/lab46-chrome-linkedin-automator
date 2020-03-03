@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { Button, Paper } from '@material-ui/core';
+import { shuffle } from 'lodash';
 // import { makeStyles } from '@material-ui/core/styles';
 // eslint-disable-next-line
 import * as chromeAsync from 'chrome-extension-async';
 
-const SCRAPE_INTERVAL = 2000;
-const PROFILE_VISIT_INTERVAL = 4000;
+const SCRAPE_INTERVAL = 3000;
+const PROFILE_VISIT_INTERVAL = 10000;
 const RAW_LINKS_KEY = 'rawLinks';
 const VISIT_PROFILE_KEY = 'visitProfile';
 const REVISIT_IGNORE_DURATION = 7 * 24 * 60 * 60 * 1000;
@@ -54,19 +55,24 @@ async function scrapePage() {
   const tabs = await chrome.tabs.query({
     url: '*://*.linkedin.com/search/results/people/*',
   });
-  const activeTab = tabs[0];
+  const targetTab = tabs[0];
+
 
   // eslint-disable-next-line
-  await chrome.tabs.executeScript(activeTab.id, {
+  await chrome.tabs.executeScript(targetTab.id, {
     code: `(${scrollToBottom})()`,
   });
 
+  // XXX(Phong): doesn't really work properly, works on the first iteration but
+  // not any other, seems to scrollToBottom AFTER the sleep, so maybe the
+  // trigger to scrollToBottom kicks off but returns and we wait for the sleep
+  // before the page can render?
   await new Promise((resolve) => {
     setTimeout(resolve, SCRAPE_INTERVAL);
   });
 
   // eslint-disable-next-line
-  const results = await chrome.tabs.executeScript(activeTab.id, {
+  const results = await chrome.tabs.executeScript(targetTab.id, {
     code: `(${getLinkedInHrefs})()`,
   });
 
@@ -74,7 +80,7 @@ async function scrapePage() {
   await appendLinks({ links: hrefs });
 
   // eslint-disable-next-line
-  const nextRes = await chrome.tabs.executeScript(activeTab.id, {
+  const nextRes = await chrome.tabs.executeScript(targetTab.id, {
     code: `(${clickNext})()`,
   });
   return nextRes[0];
@@ -135,7 +141,7 @@ async function generateVisitLinks() {
   // eslint-disable-next-line
   await chrome.storage.local.set({
     [VISIT_PROFILE_KEY]: {
-      links,
+      links: shuffle(links),
       currentIndex: 0,
     },
   });
@@ -197,6 +203,12 @@ function Home() {
     jobId: null,
   });
 
+  async function updateLinkCount() {
+    const links = await getLinks();
+    const linkCount = Object.keys(links).length;
+    setState({ ...state, linkCount });
+  }
+
   async function toggleScrapePage() {
     if (!scrapeRunning) {
       const jobId = setInterval(async () => {
@@ -204,7 +216,8 @@ function Home() {
         if (res === -1) {
           return clearScapePage(jobId);
         }
-      }, SCRAPE_INTERVAL);
+        await updateLinkCount();
+      }, SCRAPE_INTERVAL*2);
       setScrapeJobId(jobId);
     } else {
       await clearScapePage();
@@ -256,12 +269,7 @@ function Home() {
   }
 
   useEffect(() => {
-    async function init() {
-      const links = await getLinks();
-      const linkCount = Object.keys(links).length;
-      setState({ ...state, linkCount });
-    }
-    init();
+    updateLinkCount();
   }, []);
 
   return (
@@ -294,6 +302,7 @@ function Home() {
       <Paper>
         <div>Link Count: {state.linkCount}</div>
         <div>Running Scrape: {String(scrapeRunning)}</div>
+        <div>Running Profile Visits: {String(profileVisit.running)}</div>
         <div>Running Profile Visits: {String(profileVisit.running)}</div>
       </Paper>
     </div>
