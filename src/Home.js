@@ -1,12 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { Button, Paper } from '@material-ui/core';
+import { Button, Paper, Typography } from '@material-ui/core';
 import { shuffle } from 'lodash';
-// import { makeStyles } from '@material-ui/core/styles';
 // eslint-disable-next-line
 import * as chromeAsync from 'chrome-extension-async';
 
 const SCRAPE_INTERVAL = 3000;
-const PROFILE_VISIT_INTERVAL = 10000;
+const PROFILE_VISIT_INTERVAL = 3000;
 const RAW_LINKS_KEY = 'rawLinks';
 const VISIT_PROFILE_KEY = 'visitProfile';
 const REVISIT_IGNORE_DURATION = 7 * 24 * 60 * 60 * 1000;
@@ -36,7 +35,7 @@ async function appendLinks({ key = RAW_LINKS_KEY, links } = {}) {
   const data = await chrome.storage.local.get([key]);
   const allLinks = data[key] || {};
 
-  links.map((l) => {
+  links.map((l) => { // eslint-disable-line
     const date = allLinks[l];
     if (!date) {
       // XXX(Phong): I fucked up, I want to be able to not revisit links that
@@ -56,7 +55,6 @@ async function scrapePage() {
     url: '*://*.linkedin.com/search/results/people/*',
   });
   const targetTab = tabs[0];
-
 
   // eslint-disable-next-line
   await chrome.tabs.executeScript(targetTab.id, {
@@ -118,9 +116,9 @@ async function visitNextProfile() {
           // eslint-disable-next-line
           chrome.tabs.onUpdated.removeListener(listener);
           // eslint-disable-next-line
-          chrome.tabs.executeScript(w.tabs[0].id, {
-            code: `(window.close())()`,
-          });
+          // chrome.tabs.executeScript(w.tabs[0].id, {
+          //   code: `(window.close())()`,
+          // });
         }
       });
       await updateProfileVisitTime(goToLink);
@@ -132,9 +130,9 @@ async function generateVisitLinks() {
   const rawLinks = await getLinks();
 
   const links = Object.entries(rawLinks).reduce((acc, [link, ts]) => {
-    if (Date.now() - ts > REVISIT_IGNORE_DURATION) {
-      acc.push(link);
-    }
+    // if (Date.now() - ts > REVISIT_IGNORE_DURATION) {
+    acc.push(link);
+    // }
     return acc;
   }, []);
 
@@ -201,12 +199,23 @@ function Home() {
   const [profileVisit, setProfileVisit] = useState({
     running: false,
     jobId: null,
+    numberToVisit: 0,
+    numberVisited: 0,
   });
 
   async function updateLinkCount() {
     const links = await getLinks();
     const linkCount = Object.keys(links).length;
     setState({ ...state, linkCount });
+  }
+
+  async function updateProfileVisitState() {
+    const data = await getVisitProfileData();
+    setProfileVisit((pv) => ({
+      ...pv,
+      numberToVisit: data.links.length,
+      numberVisited: data.currentIndex,
+    }));
   }
 
   async function toggleScrapePage() {
@@ -217,7 +226,7 @@ function Home() {
           return clearScapePage(jobId);
         }
         await updateLinkCount();
-      }, SCRAPE_INTERVAL*2);
+      }, SCRAPE_INTERVAL * 2);
       setScrapeJobId(jobId);
     } else {
       await clearScapePage();
@@ -242,6 +251,7 @@ function Home() {
     if (!profileVisit.running) {
       const jobId = setInterval(async () => {
         const res = await visitNextProfile();
+        await updateProfileVisitState();
         if (res === -1) {
           links = (await generateVisitLinks()) || [];
           if (links.length <= 0) {
@@ -283,10 +293,8 @@ function Home() {
           >
             {scrapeRunning ? 'Stop Scraping' : 'Start Scraping'}
           </Button>
-        </div>
-        <div>
           <Button variant="contained" color="secondary" onClick={clearLinks}>
-            Clear
+            Clear Scraped Data
           </Button>
         </div>
         <div>
@@ -300,10 +308,16 @@ function Home() {
         </div>
       </Paper>
       <Paper>
-        <div>Link Count: {state.linkCount}</div>
-        <div>Running Scrape: {String(scrapeRunning)}</div>
-        <div>Running Profile Visits: {String(profileVisit.running)}</div>
-        <div>Running Profile Visits: {String(profileVisit.running)}</div>
+        <Typography variant="subtitle2">
+          Scraped Profile Count: {state.linkCount}
+        </Typography>
+        <hr />
+        <Typography variant="subtitle2">
+          To Visit Count: {profileVisit.numberToVisit}
+        </Typography>
+        <Typography variant="subtitle2">
+          Visited Count: {profileVisit.numberVisited}
+        </Typography>
       </Paper>
     </div>
   );

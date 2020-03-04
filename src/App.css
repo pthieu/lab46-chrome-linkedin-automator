@@ -1,5 +1,24 @@
+html,
+body {
+  height: 100%;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  background-color: #eeeeee;
+  box-sizing: border-box;
+}
+
+body {
+  display: inline-block;
+}
+
+body *,
+html * {
+  box-sizing: border-box;
+}
+
 .App {
-  text-align: center;
+  text-align: left;
 }
 
 .App-logo {

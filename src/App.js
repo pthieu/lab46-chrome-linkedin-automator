@@ -1,14 +1,18 @@
 import React from 'react';
-// import { makeStyles } from '@material-ui/core/styles';
-import * as chromeAsync from 'chrome-extension-async';
+import { MuiThemeProvider } from '@material-ui/core/styles';
 
 import Home from './Home';
+import theme from './lib/theme';
+
+import './App.css'
 
 function App() {
   return (
-    <div className="App">
-      <Home />
-    </div>
+    <MuiThemeProvider theme={theme}>
+      <div className="App">
+        <Home />
+      </div>
+    </MuiThemeProvider>
   );
 }
 
